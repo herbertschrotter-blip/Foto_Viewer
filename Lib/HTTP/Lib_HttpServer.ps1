@@ -84,26 +84,8 @@ function Start-FVHttpServer {
     .EXAMPLE
     Start-FVHttpServer -Port 8787
     
-    .EXAMPLE
-    # Mit Custom-Handler
-    Start-FVHttpServer -Port 8787 -RequestHandler {
-        param($Context)
-        $response = $Context.Response
-        $html = "<h1>Hello World</h1>"
-        $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-        $response.OutputStream.Write($buffer, 0, $buffer.Length)
-        $response.Close()
-    }
-    
-    .EXAMPLE
-    # Mit Verbose-Output
-    Start-FVHttpServer -Port 8787 -Verbose
-    
     .NOTES
     Blockiert bis Server gestoppt wird (Endlos-Schleife).
-    Für Produktion: In separatem Runspace/Job ausführen.
-    
-    Benötigt KEINE Admin-Rechte für localhost/127.0.0.1.
     #>
     
     [CmdletBinding()]
@@ -154,77 +136,80 @@ function Start-FVHttpServer {
         Write-Host "  Drücke Ctrl+C zum Beenden" -ForegroundColor Yellow
         Write-Host ""
         
-        # State setzen (falls State-Lib verfügbar)
+        # State setzen
         try {
             Set-FVState -Key "ServerRunning" -Value $true -ErrorAction SilentlyContinue
         } catch {
             Write-Verbose "State-Lib nicht verfügbar (OK)"
         }
         
-        # Request-Loop
+        # Request-Loop (EINFACH & ROBUST)
+        Write-Verbose "Starte Request-Loop..."
+        
         while ($script:FVHttpRunning) {
             try {
-                # Auf Request warten (mit Timeout für sauberes Shutdown)
-                $contextTask = $script:FVHttpListener.GetContextAsync()
+                Write-Verbose "Warte auf Request..."
                 
-                # Warte mit Timeout (ermöglicht Check von ServerRunning-State)
-                $timeout = [System.TimeSpan]::FromSeconds(1)
-                $completed = $contextTask.Wait($timeout)
+                # Blockierendes GetContext
+                $context = $script:FVHttpListener.GetContext()
                 
-                if (-not $completed) {
-                    # Timeout → Check ServerRunning-State
-                    try {
-                        $stateRunning = Get-FVState -Key "ServerRunning" -Default $true -ErrorAction SilentlyContinue
-                        if (-not $stateRunning) {
-                            Write-Verbose "ServerRunning-State = false, beende Loop"
-                            break
-                        }
-                    } catch {
-                        # State-Lib nicht verfügbar, weitermachen
-                    }
-                    continue
-                }
-                
-                $context = $contextTask.Result
                 $request = $context.Request
                 $response = $context.Response
                 
-                Write-Verbose "Request: $($request.HttpMethod) $($request.Url.AbsolutePath)"
+                Write-Host "→ $($request.HttpMethod) $($request.Url.AbsolutePath)" -ForegroundColor Cyan
+                Write-Verbose "Request empfangen: $($request.HttpMethod) $($request.Url.AbsolutePath)"
                 
                 # Request-Handler aufrufen
                 if ($RequestHandler) {
                     # Custom-Handler
+                    Write-Verbose "Führe Custom-Handler aus"
                     & $RequestHandler $context
                 } else {
-                    # Router verwenden (falls verfügbar)
+                    # Router verwenden
+                    Write-Verbose "Rufe Router auf"
                     try {
                         Invoke-FVRoute -Request $request -Response $response -ErrorAction Stop
                     } catch {
-                        # Router nicht verfügbar oder Route nicht gefunden
                         Write-Verbose "Router-Fehler: $($_.Exception.Message)"
+                        Write-Host "  ✗ Fehler: $($_.Exception.Message)" -ForegroundColor Red
                         
                         # Fallback: 404
-                        $html = "<h1>404 - Not Found</h1><p>$($request.Url.AbsolutePath)</p>"
-                        $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-                        $response.StatusCode = 404
-                        $response.ContentType = "text/html; charset=utf-8"
-                        $response.ContentLength64 = $buffer.Length
-                        $response.OutputStream.Write($buffer, 0, $buffer.Length)
-                        $response.Close()
+                        try {
+                            $html = @"
+<!DOCTYPE html>
+<html>
+<head><title>404 - Not Found</title></head>
+<body>
+<h1>404 - Not Found</h1>
+<p>Route nicht gefunden: $($request.Url.AbsolutePath)</p>
+<p>Error: $($_.Exception.Message)</p>
+</body>
+</html>
+"@
+                            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
+                            $response.StatusCode = 404
+                            $response.ContentType = "text/html; charset=utf-8"
+                            $response.ContentLength64 = $buffer.Length
+                            $response.OutputStream.Write($buffer, 0, $buffer.Length)
+                            $response.Close()
+                        } catch {
+                            Write-Verbose "Konnte keine 404-Response senden: $($_.Exception.Message)"
+                        }
                     }
                 }
                 
             } catch [System.Net.HttpListenerException] {
-                # Listener wurde gestoppt → Loop beenden
+                # Listener wurde gestoppt
                 Write-Verbose "HttpListener gestoppt"
                 break
             } catch {
                 Write-FVLog -Level Error -Message "Request-Fehler: $($_.Exception.Message)" -Exception $_
+                Write-Host "  ✗ Request-Fehler: $($_.Exception.Message)" -ForegroundColor Red
                 
-                # Versuche 500-Response zu senden
+                # Versuche 500-Response
                 try {
-                    if ($null -ne $response -and -not $response.OutputStream.CanWrite) {
-                        $html = "<h1>500 - Internal Server Error</h1>"
+                    if ($null -ne $response -and $response.OutputStream.CanWrite) {
+                        $html = "<h1>500 - Internal Server Error</h1><p>$($_.Exception.Message)</p>"
                         $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
                         $response.StatusCode = 500
                         $response.ContentType = "text/html; charset=utf-8"

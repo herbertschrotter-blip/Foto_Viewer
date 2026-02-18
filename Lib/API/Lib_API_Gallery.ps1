@@ -7,24 +7,11 @@ Registriert Routes für Gallery-Funktionalität:
 - GET / → Gallery-Seite (HTML)
 - GET /api/media → Media-Liste (JSON)
 
-Verwendet:
-- Lib_Scanner (Medien scannen)
-- Lib_Thumbnails (Thumbnails generieren)
-- Lib_TemplateEngine (HTML rendern)
-- Lib_Response (Responses senden)
-
-.EXAMPLE
-# In start.ps1:
-Register-FVGalleryRoutes
-
 .NOTES
 Autor: Herbert Schrotter
 Version: 1.0.0
 Erstellt: 2025-02-18
 Projekt: Foto_Viewer
-
-.LINK
-https://github.com/herbertschrotter-blip/Foto_Viewer
 #>
 
 #Requires -Version 5.1
@@ -32,25 +19,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 
-# ============================================================================
-# PUBLIC FUNCTIONS
-# ============================================================================
-
 function Register-FVGalleryRoutes {
     <#
     .SYNOPSIS
     Registriert Gallery-Routes
     
     .DESCRIPTION
-    Registriert folgende Routes:
+    Registriert:
     - GET / → Gallery-Seite
-    - GET /api/media → Media-Liste als JSON
-    
-    .EXAMPLE
-    Register-FVGalleryRoutes
-    
-    .NOTES
-    Verwendet Router aus Lib_Router.ps1
+    - GET /api/media → Media-Liste JSON
     #>
     
     [CmdletBinding()]
@@ -59,9 +36,13 @@ function Register-FVGalleryRoutes {
     try {
         Write-Verbose "Registriere Gallery-Routes..."
         
+        # ====================================================================
         # Route: GET /
+        # ====================================================================
         Register-FVRoute -Path "/" -Method GET -Handler {
             param($Request, $Response)
+            
+            Write-Host "  → Gallery-Handler gestartet" -ForegroundColor Cyan
             
             try {
                 Write-Verbose "Handler: GET /"
@@ -69,8 +50,13 @@ function Register-FVGalleryRoutes {
                 # Root-Path aus State
                 $rootPath = Get-FVState -Key "RootPath"
                 
+                Write-Host "    RootPath: $rootPath" -ForegroundColor Gray
+                Write-Verbose "RootPath: $rootPath"
+                
                 if (-not $rootPath -or -not (Test-Path -LiteralPath $rootPath)) {
-                    # Kein Root-Path → Zeige Setup-Seite
+                    Write-Host "    → Setup-Seite (kein Root-Path)" -ForegroundColor Yellow
+                    
+                    # Setup-Seite
                     $html = @"
 <!DOCTYPE html>
 <html>
@@ -78,7 +64,7 @@ function Register-FVGalleryRoutes {
     <title>Foto Viewer - Setup</title>
     <style>
         body { 
-            font-family: Arial; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #0f172a; 
             color: #f1f5f9; 
             display: flex; 
@@ -90,17 +76,23 @@ function Register-FVGalleryRoutes {
         .setup { 
             text-align: center; 
             max-width: 600px; 
-            padding: 2rem; 
+            padding: 2rem;
+            background: #1e293b;
+            border-radius: 1rem;
         }
-        h1 { color: #2563eb; }
-        p { margin: 1rem 0; }
+        h1 { color: #2563eb; margin-bottom: 1rem; }
+        p { margin: 1rem 0; color: #94a3b8; }
         .code { 
-            background: #1e293b; 
+            background: #0f172a; 
             padding: 1rem; 
             border-radius: 0.5rem; 
-            margin: 1rem 0; 
-            font-family: monospace; 
+            margin: 1.5rem 0; 
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: #10b981;
         }
+        a { color: #2563eb; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -110,30 +102,36 @@ function Register-FVGalleryRoutes {
         <div class="code">
             Set-FVState -Key "RootPath" -Value "C:\Dein\Foto\Ordner"
         </div>
-        <p>Dann neu laden: <a href="/" style="color: #2563eb;">Refresh</a></p>
+        <p>Dann neu laden: <a href="/">Refresh</a></p>
+        <p style="font-size: 0.8rem; margin-top: 2rem; color: #64748b;">
+            Hinweis: Führe den Befehl in PowerShell aus während der Server läuft.
+        </p>
     </div>
 </body>
 </html>
 "@
                     Send-FVHtmlResponse -Response $Response -Html $html
+                    Write-Host "    ✓ Setup-Seite gesendet" -ForegroundColor Green
                     return
                 }
                 
+                Write-Host "    → Scanne Medien..." -ForegroundColor Cyan
+                
                 # Medien scannen
-                Write-Verbose "Scanne Medien: $rootPath"
                 $media = Invoke-FVScan -Path $rootPath -Recursive $true
                 
-                # Thumbnails generieren (async in Background)
-                $thumbnailJobs = @()
+                Write-Host "      Gefunden: $($media.Count) Dateien" -ForegroundColor Gray
+                Write-Verbose "Medien gefunden: $($media.Count)"
+                
+                # Thumbnails generieren
+                Write-Host "    → Generiere Thumbnails..." -ForegroundColor Cyan
                 foreach ($item in $media) {
-                    # Cache-Check
                     if (-not (Test-FVThumbnailCache -MediaPath $item.Path)) {
-                        # Thumbnail fehlt → Generieren
-                        Write-Verbose "Generiere Thumbnail: $($item.Name)"
                         try {
                             New-FVThumbnail -MediaPath $item.Path -ErrorAction SilentlyContinue | Out-Null
+                            Write-Verbose "Thumbnail erstellt: $($item.Name)"
                         } catch {
-                            Write-Verbose "Thumbnail-Fehler: $($_.Exception.Message)"
+                            Write-Verbose "Thumbnail-Fehler: $($item.Name) - $($_.Exception.Message)"
                         }
                     }
                 }
@@ -143,35 +141,37 @@ function Register-FVGalleryRoutes {
                 $videoCount = @($media | Where-Object Type -eq 'Video').Count
                 $totalSize = ($media | Measure-Object -Property Size -Sum).Sum
                 
-                # Template-Daten vorbereiten
+                Write-Host "      Bilder: $imageCount, Videos: $videoCount" -ForegroundColor Gray
+                
+                # Template-Daten
                 $mediaItems = $media | ForEach-Object {
                     $item = $_
                     
                     # Thumbnail-Pfade
                     $thumbs = @()
                     if ($item.Type -eq 'Video') {
-                        # Multi-Frame Video-Thumbs
+                        # Multi-Frame
                         $config = Read-FVConfig
                         $frameCount = if ($config.Thumbnails.VideoFrames) { $config.Thumbnails.VideoFrames } else { 3 }
                         
                         for ($i = 1; $i -le $frameCount; $i++) {
                             $thumbPath = Get-FVThumbnailPath -MediaPath $item.Path -FrameIndex $i
                             if (Test-Path -LiteralPath $thumbPath) {
-                                $relativePath = $thumbPath.Replace($rootPath, '').TrimStart('\', '/')
+                                $relativePath = $thumbPath.Replace($rootPath, '').TrimStart('\', '/').Replace('\', '/')
                                 $thumbs += "/media/$relativePath"
                             }
                         }
                     } else {
-                        # Single Image Thumb
+                        # Single
                         $thumbPath = Get-FVThumbnailPath -MediaPath $item.Path
                         if (Test-Path -LiteralPath $thumbPath) {
-                            $relativePath = $thumbPath.Replace($rootPath, '').TrimStart('\', '/')
+                            $relativePath = $thumbPath.Replace($rootPath, '').TrimStart('\', '/').Replace('\', '/')
                             $thumbs += "/media/$relativePath"
                         }
                     }
                     
-                    # Media-Pfad relativ
-                    $mediaRelativePath = $item.Path.Replace($rootPath, '').TrimStart('\', '/')
+                    # Media-Pfad
+                    $mediaRelativePath = $item.Path.Replace($rootPath, '').TrimStart('\', '/').Replace('\', '/')
                     
                     @{
                         name = $item.Name
@@ -182,31 +182,47 @@ function Register-FVGalleryRoutes {
                     }
                 }
                 
-                # Template rendern
+                Write-Host "    → Rendere Template..." -ForegroundColor Cyan
+                
+                # Asset-URLs generieren (OHNE extra Quotes!)
+                $cssUrl = Get-FVAssetUrl -Path "css/style.css" -WithCacheBust
+                $jsUrl = Get-FVAssetUrl -Path "js/app.js" -WithCacheBust
+                
+                Write-Verbose "CSS-URL: $cssUrl"
+                Write-Verbose "JS-URL: $jsUrl"
+                
+                # Template-Daten (Single Quotes!)
                 $templateData = @{
-                    title = "Gallery"
+                    title = 'Gallery'
                     imageCount = $imageCount
                     videoCount = $videoCount
-                    totalSize = "{0:N2} GB" -f ($totalSize / 1GB)
+                    totalSize = '{0:N2} GB' -f ($totalSize / 1GB)
                     mediaItems = $mediaItems
-                    cssUrl = Get-FVAssetUrl -Path "css/style.css" -WithCacheBust
-                    jsUrl = Get-FVAssetUrl -Path "js/app.js" -WithCacheBust
+                    cssUrl = $cssUrl
+                    jsUrl = $jsUrl
                 }
                 
+                # Template rendern
                 $html = Invoke-FVTemplate -Name "gallery" -Data $templateData
                 
-                # Response senden
+                Write-Host "    → Sende HTML..." -ForegroundColor Cyan
+                
+                # Response
                 Send-FVHtmlResponse -Response $Response -Html $html
                 
+                Write-Host "    ✓ Gallery gesendet ($($html.Length) bytes)" -ForegroundColor Green
                 Write-Verbose "Gallery gerendert: $($media.Count) Medien"
                 
             } catch {
+                Write-Host "    ✗ Fehler: $($_.Exception.Message)" -ForegroundColor Red
                 Write-Error "Fehler in Gallery-Handler: $($_.Exception.Message)"
                 Send-FVErrorResponse -Response $Response -StatusCode 500 -Message "Gallery-Fehler" -Details $_.Exception.Message
             }
         }
         
+        # ====================================================================
         # Route: GET /api/media
+        # ====================================================================
         Register-FVRoute -Path "/api/media" -Method GET -Handler {
             param($Request, $Response)
             
@@ -236,7 +252,7 @@ function Register-FVGalleryRoutes {
                 
                 $media = Invoke-FVScan -Path $rootPath -Type $typeFilter -Recursive $true -SortBy Name
                 
-                # JSON vorbereiten
+                # JSON
                 $mediaJson = $media | ForEach-Object {
                     @{
                         name = $_.Name

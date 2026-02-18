@@ -308,15 +308,10 @@ function Register-FVRoute {
 function Invoke-FVRoute {
     <#
     .SYNOPSIS
-    Routet Request an passenden Handler
+    Führt Route-Handler aus
     
     .DESCRIPTION
-    Sucht passende Route für Request und ruft Handler auf.
-    
-    Matching-Reihenfolge:
-    1. Exakte Matches nach Method + Path
-    2. Wildcard-Matches nach Spezifität
-    3. 404 wenn keine Route matched
+    Findet passende Route für Request und führt Handler aus.
     
     .PARAMETER Request
     HttpListenerRequest-Objekt
@@ -324,128 +319,64 @@ function Invoke-FVRoute {
     .PARAMETER Response
     HttpListenerResponse-Objekt
     
-    .EXAMPLE
-    # Im HttpServer Request-Loop:
-    $context = $listener.GetContext()
-    $request = $context.Request
-    $response = $context.Response
-    
-    Invoke-FVRoute -Request $request -Response $response
-    
-    .EXAMPLE
-    # Mit Verbose für Debugging
-    Invoke-FVRoute -Request $request -Response $response -Verbose
-    
     .NOTES
-    Wirft Exception wenn:
-    - Handler fehlschlägt
-    - Response bereits geschlossen
-    
-    Sendet automatisch 404 wenn keine Route matched.
+    Internal Function
     #>
     
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [System.Net.HttpListenerRequest]$Request,
+        $Request,
         
         [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [System.Net.HttpListenerResponse]$Response
+        $Response
     )
     
     try {
+        $path = $Request.Url.LocalPath
         $method = $Request.HttpMethod
-        $path = $Request.Url.AbsolutePath
         
-        Write-Verbose "Route-Suche: $method $path"
+        Write-Verbose "Route-Matching: $method $path"
+        Write-Verbose "Verfügbare Routes: $($script:FVRoutes.Count)"
         
-        # Passende Route suchen (bereits nach Score sortiert)
-        $matchedRoute = $null
+        # Route finden
+        $route = $null
         
-        foreach ($route in $script:FVRoutes) {
-            # Method-Check
-            if ($route.Method -ne $method) {
-                continue
-            }
+        foreach ($r in $script:FVRoutes) {
+            Write-Verbose "  Prüfe: $($r.Method) $($r.Path)"
             
-            # Path-Check
-            if (Test-RouteMatch -RequestPath $path -RoutePath $route.Path) {
-                $matchedRoute = $route
-                Write-Verbose "Route matched: $($route.Method) $($route.Path) (Score: $($route.Score))"
+            # Exact Match
+            if ($r.Path -eq $path -and $r.Method -eq $method) {
+                Write-Verbose "  ✓ Exact Match gefunden!"
+                $route = $r
                 break
             }
+            
+            # Wildcard Match (z.B. /assets/*)
+            if ($r.Path -like "*`*" -and $r.Method -eq $method) {
+                $pattern = "^" + ($r.Path -replace '\*', '.*') + "$"
+                if ($path -match $pattern) {
+                    Write-Verbose "  ✓ Wildcard Match gefunden!"
+                    $route = $r
+                    break
+                }
+            }
         }
         
-        # Route gefunden?
-        if ($null -ne $matchedRoute) {
-            # Handler aufrufen
-            try {
-                & $matchedRoute.Handler $Request $Response
-                Write-Verbose "Handler erfolgreich ausgeführt"
-                
-            } catch {
-                Write-FVLog -Level Error -Message "Handler-Fehler für $method $path : $($_.Exception.Message)" -Exception $_
-                
-                # 500-Response senden (falls noch möglich)
-                try {
-                    if (-not $Response.OutputStream.CanWrite) {
-                        throw "Response bereits geschlossen"
-                    }
-                    
-                    $html = @"
-<!DOCTYPE html>
-<html>
-<head><title>500 - Internal Server Error</title></head>
-<body style="font-family: Arial; padding: 50px; background: #1a1a1a; color: #fff;">
-    <h1 style="color: #f44336;">500 - Internal Server Error</h1>
-    <p>Ein Fehler ist aufgetreten beim Verarbeiten des Requests.</p>
-    <p><strong>Path:</strong> $path</p>
-    <p><strong>Error:</strong> $($_.Exception.Message)</p>
-</body>
-</html>
-"@
-                    $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-                    $Response.StatusCode = 500
-                    $Response.ContentType = "text/html; charset=utf-8"
-                    $Response.ContentLength64 = $buffer.Length
-                    $Response.OutputStream.Write($buffer, 0, $buffer.Length)
-                    $Response.Close()
-                    
-                } catch {
-                    Write-Verbose "Konnte keine 500-Response senden: $($_.Exception.Message)"
-                }
-                
-                throw
-            }
-            
-        } else {
-            # Keine Route gefunden → 404
-            Write-Verbose "Keine Route gefunden für: $method $path"
-            
-            $html = @"
-<!DOCTYPE html>
-<html>
-<head><title>404 - Not Found</title></head>
-<body style="font-family: Arial; padding: 50px; background: #1a1a1a; color: #fff;">
-    <h1 style="color: #ff9800;">404 - Not Found</h1>
-    <p>Die angeforderte Ressource wurde nicht gefunden.</p>
-    <p><strong>Path:</strong> $path</p>
-    <p><strong>Method:</strong> $method</p>
-</body>
-</html>
-"@
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-            $Response.StatusCode = 404
-            $Response.ContentType = "text/html; charset=utf-8"
-            $Response.ContentLength64 = $buffer.Length
-            $Response.OutputStream.Write($buffer, 0, $buffer.Length)
-            $Response.Close()
+        if ($null -eq $route) {
+            Write-Verbose "Route nicht gefunden: $method $path"
+            throw "Route nicht gefunden: $method $path"
         }
+        
+        Write-Verbose "Führe Handler aus für: $method $path"
+        
+        # Handler ausführen
+        & $route.Handler $Request $Response
+        
+        Write-Verbose "Handler erfolgreich ausgeführt"
         
     } catch {
-        Write-Error "Fehler beim Routen: $($_.Exception.Message)"
+        Write-Error "Fehler beim Ausführen der Route: $($_.Exception.Message)"
         throw
     }
 }

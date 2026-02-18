@@ -57,56 +57,37 @@ function Invoke-FVScan {
     Scannt Verzeichnis nach Medien-Dateien
     
     .DESCRIPTION
-    Rekursiver Scan für Bilder und Videos.
-    Verwendet Config für erlaubte Extensions.
-    
-    Gibt Array von Medien-Objekten zurück:
-    - Path: Absoluter Pfad
-    - RelativePath: Relativ zu RootPath
-    - Name: Dateiname
-    - Extension: .jpg, .mp4, etc.
-    - Type: Image oder Video
-    - Size: Bytes
-    - LastModified: DateTime
+    Durchsucht angegebenen Pfad nach Bildern und Videos.
+    Filtert nach konfigurierten Extensions.
+    Ignoriert .thumbs Ordner.
     
     .PARAMETER Path
-    Verzeichnis zum Scannen
+    Zu scannender Pfad
     
     .PARAMETER Recursive
-    Optional: Rekursiv scannen (Default: $true)
+    Rekursiv scannen (Default: $true)
     
     .PARAMETER Type
-    Optional: Filter nach Type (All, Images, Videos)
-    Default: All
+    Filter nach Typ: All, Images, Videos (Default: All)
     
     .PARAMETER SortBy
-    Optional: Sortierung (Name, Date, Size)
-    Default: Name
-    
-    .PARAMETER SortOrder
-    Optional: Sortier-Richtung (Ascending, Descending)
-    Default: Ascending
+    Sortierung: Name, Date, Size (Default: Name)
     
     .EXAMPLE
-    $media = Invoke-FVScan -Path "C:\Photos" -Recursive
+    $media = Invoke-FVScan -Path "C:\Photos"
     
     .EXAMPLE
-    # Nur Bilder, nach Datum sortiert
-    $images = Invoke-FVScan -Path "C:\Photos" -Type Images -SortBy Date -SortOrder Descending
-    
-    .EXAMPLE
-    # Nicht rekursiv
-    $media = Invoke-FVScan -Path "C:\Photos" -Recursive:$false
+    $images = Invoke-FVScan -Path "C:\Photos" -Type Images -Recursive $false
     
     .OUTPUTS
-    Array von Medien-Objekten
+    Array von PSCustomObjects mit Media-Dateien
     #>
     
     [CmdletBinding()]
     [OutputType([PSCustomObject[]])]
     param(
         [Parameter(Mandatory)]
-        [ValidateScript({Test-Path -LiteralPath $_ -PathType Container})]
+        [ValidateScript({Test-Path -LiteralPath $_})]
         [string]$Path,
         
         [Parameter()]
@@ -118,90 +99,78 @@ function Invoke-FVScan {
         
         [Parameter()]
         [ValidateSet('Name', 'Date', 'Size')]
-        [string]$SortBy = 'Name',
-        
-        [Parameter()]
-        [ValidateSet('Ascending', 'Descending')]
-        [string]$SortOrder = 'Ascending'
+        [string]$SortBy = 'Name'
     )
     
     try {
-        Write-Verbose "Scanne Verzeichnis: $Path (Recursive: $Recursive, Type: $Type)"
+        Write-Verbose "Scanne Pfad: $Path (Recursive: $Recursive, Type: $Type)"
         
-        # Config laden für Extensions
+        # Config laden
         $config = Read-FVConfig -ErrorAction Stop
+        
+        # Extensions (aus MediaExtensions!)
         $imageExts = $config.MediaExtensions.Images
         $videoExts = $config.MediaExtensions.Videos
         
-        # Type-Filter
-        $allowedExts = switch ($Type) {
+        # Filter Extensions
+        $allExtensions = switch ($Type) {
             'Images' { $imageExts }
             'Videos' { $videoExts }
-            'All'    { $imageExts + $videoExts }
+            default { $imageExts + $videoExts }
         }
         
-        Write-Verbose "Erlaubte Extensions: $($allowedExts -join ', ')"
+        Write-Verbose "Extensions: $($allExtensions -join ', ')"
         
         # Dateien scannen
-        $scanParams = @{
-            LiteralPath = $Path
-            File = $true
-            ErrorAction = 'SilentlyContinue'
-        }
-        
-        if ($Recursive) {
-            $scanParams.Recurse = $true
-        }
-        
-        $files = Get-ChildItem @scanParams
-        
-        Write-Verbose "Dateien gefunden: $($files.Count)"
-        
-        # Nach Extension filtern
-        $mediaFiles = @()
-        
-        foreach ($file in $files) {
-            $ext = $file.Extension.ToLower()
-            
-            if ($ext -notin $allowedExts) {
-                continue
+        $items = Get-ChildItem -LiteralPath $Path -Recurse:$Recursive -File -ErrorAction Stop |
+            Where-Object { 
+                # .thumbs Ordner ignorieren!
+                $_.DirectoryName -notlike '*\.thumbs*' -and
+                $_.FullName -notlike '*\.thumbs\*' -and
+                # Extension-Filter
+                $_.Extension.ToLower() -in $allExtensions
             }
+        
+        Write-Verbose "Dateien gefunden: $($items.Count)"
+        
+        # Medien-Objekte erstellen
+        $media = $items | ForEach-Object {
+            $file = $_
             
             # Type bestimmen
-            $mediaType = if ($ext -in $imageExts) { 'Image' } else { 'Video' }
-            
-            # Relativen Pfad berechnen
-            $relativePath = $file.FullName.Replace($Path, '').TrimStart('\', '/')
-            
-            # Medien-Objekt erstellen
-            $mediaObj = [PSCustomObject]@{
-                Path = $file.FullName
-                RelativePath = $relativePath
-                Name = $file.Name
-                Extension = $ext
-                Type = $mediaType
-                Size = $file.Length
-                LastModified = $file.LastWriteTime
+            $fileType = if ($file.Extension.ToLower() -in $imageExts) {
+                'Image'
+            } elseif ($file.Extension.ToLower() -in $videoExts) {
+                'Video'
+            } else {
+                'Unknown'
             }
             
-            $mediaFiles += $mediaObj
+            # Relativer Pfad
+            $relativePath = $file.FullName.Replace($Path, '').TrimStart('\', '/')
+            
+            [PSCustomObject]@{
+                Name = $file.Name
+                Path = $file.FullName
+                RelativePath = $relativePath
+                Extension = $file.Extension
+                Type = $fileType
+                Size = $file.Length
+                LastModified = $file.LastWriteTime
+                Directory = $file.DirectoryName
+            }
         }
         
-        Write-Verbose "Medien-Dateien gefiltert: $($mediaFiles.Count)"
-        
-        # Sortieren
-        $sortProperty = switch ($SortBy) {
-            'Name' { 'Name' }
-            'Date' { 'LastModified' }
-            'Size' { 'Size' }
+        # Sortierung
+        $media = switch ($SortBy) {
+            'Date' { $media | Sort-Object LastModified -Descending }
+            'Size' { $media | Sort-Object Size -Descending }
+            default { $media | Sort-Object Name }
         }
         
-        $descending = $SortOrder -eq 'Descending'
-        $mediaFiles = $mediaFiles | Sort-Object $sortProperty -Descending:$descending
+        Write-Verbose "Medien verarbeitet: $($media.Count)"
         
-        Write-Verbose "Scan abgeschlossen: $($mediaFiles.Count) Dateien"
-        
-        return $mediaFiles
+        return $media
         
     } catch {
         Write-Error "Fehler beim Scannen: $($_.Exception.Message)"
