@@ -3,18 +3,19 @@
 *.swp
 *~
 
-# Logs
-logs/
-*.log
-*.tmp
+# Build-Artefakte
+bin/
+obj/
+*.dll
+*.pdb
 
 # Test-Ergebnisse
 TestResults/
 *.trx
 
-# Cache
-cache/
-.thumbs/
+# Paket-Dateien
+*.nupkg
+*.zip
 
 # Sensible Daten
 *.pfx
@@ -33,10 +34,23 @@ credentials.xml
 Thumbs.db
 desktop.ini
 
-# FFmpeg (zu groß für Git, lokal bereitstellen)
+# Logs
+logs/
+*.log
+*.tmp
+
+# Foto_Viewer spezifisch
+.thumbs/
+cache/
+TestMedia/
+
+# FFmpeg Binaries (groß, jeder muss selbst installieren)
 Tools/ffmpeg/*.exe
 Tools/ffmpeg/*.dll
+Tools/ffmpeg/*.lib
 
-# User-Daten (nicht committen)
-TestPhotos/
-TestVideos/
+# Konvertierte Videos (werden on-demand erstellt)
+converted/
+
+# User-spezifische Config (falls später)
+config/local.json
