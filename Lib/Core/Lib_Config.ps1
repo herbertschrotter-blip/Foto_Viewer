@@ -60,6 +60,12 @@ function Get-ConfigPath {
     Berechnet den absoluten Pfad zur config/settings.json basierend
     auf dem Script-Verzeichnis. Wirft Exception wenn Datei nicht existiert.
     
+    Pfad-Berechnung:
+    $PSScriptRoot = .../03_Foto-Viewer/Lib/Core
+    Split-Path -Parent (1x) = .../03_Foto-Viewer/Lib
+    Split-Path -Parent (2x) = .../03_Foto-Viewer
+    Join-Path config\settings.json = .../03_Foto-Viewer/config/settings.json
+    
     .EXAMPLE
     $path = Get-ConfigPath
     
@@ -76,8 +82,12 @@ function Get-ConfigPath {
     
     try {
         $scriptRoot = $PSScriptRoot
+        
         # Von Lib/Core/ zwei Ebenen hoch zu Projekt-Root
-        $projectRoot = Split-Path (Split-Path $scriptRoot -Parent) -Parent
+        # Lib/Core → Lib → 03_Foto-Viewer
+        $libDir = Split-Path $scriptRoot -Parent      # Lib/Core → Lib
+        $projectRoot = Split-Path $libDir -Parent      # Lib → 03_Foto-Viewer
+        
         $configPath = Join-Path $projectRoot "config\settings.json"
         
         if (-not (Test-Path -LiteralPath $configPath)) {
