@@ -169,18 +169,28 @@ function Get-FVThumbnailPath {
     
     .DESCRIPTION
     Gibt Pfad wo Thumbnail gespeichert wird/ist.
-    Format: {MediaOrdner}/.thumbs/{Dateiname}
     
-    Beispiel:
-    C:\Photos\2024\vacation.jpg
-    → C:\Photos\2024\.thumbs\vacation.jpg
+    Für Videos mit mehreren Frames:
+    - C:\Videos\.thumbs\movie_1.jpg
+    - C:\Videos\.thumbs\movie_2.jpg
+    - C:\Videos\.thumbs\movie_3.jpg
     
     .PARAMETER MediaPath
     Pfad zur Medien-Datei
     
+    .PARAMETER FrameIndex
+    Optional: Frame-Index für Video-Thumbs (1, 2, 3, ...)
+    Für Bilder: ignoriert
+    
     .EXAMPLE
-    $thumbPath = Get-FVThumbnailPath -MediaPath "C:\Photos\2024\vacation.jpg"
-    # → C:\Photos\2024\.thumbs\vacation.jpg
+    # Bild
+    $thumbPath = Get-FVThumbnailPath -MediaPath "C:\Photos\vacation.jpg"
+    # → C:\Photos\.thumbs\vacation.jpg
+    
+    .EXAMPLE
+    # Video (einzelner Frame)
+    $thumbPath = Get-FVThumbnailPath -MediaPath "C:\Videos\movie.mp4" -FrameIndex 1
+    # → C:\Videos\.thumbs\movie_1.jpg
     
     .OUTPUTS
     String - Absoluter Pfad zum Thumbnail
@@ -191,7 +201,11 @@ function Get-FVThumbnailPath {
     param(
         [Parameter(Mandatory)]
         [ValidateScript({Test-Path -LiteralPath $_})]
-        [string]$MediaPath
+        [string]$MediaPath,
+        
+        [Parameter()]
+        [ValidateRange(1, 100)]
+        [int]$FrameIndex
     )
     
     try {
@@ -204,9 +218,17 @@ function Get-FVThumbnailPath {
         # .thumbs Ordner im gleichen Verzeichnis
         $thumbDir = Join-Path $parentDir ".thumbs"
         
-        # Thumbnail-Pfad (gleicher Dateiname, aber .jpg Extension)
+        # Dateiname
         $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
-        $thumbPath = Join-Path $thumbDir "$baseName.jpg"
+        
+        # Thumbnail-Pfad
+        if ($FrameIndex) {
+            # Video mit Frame-Index: movie_1.jpg, movie_2.jpg
+            $thumbPath = Join-Path $thumbDir "${baseName}_${FrameIndex}.jpg"
+        } else {
+            # Bild oder Video ohne Index: vacation.jpg
+            $thumbPath = Join-Path $thumbDir "$baseName.jpg"
+        }
         
         Write-Verbose "Thumbnail-Pfad: $MediaPath → $thumbPath"
         
@@ -383,30 +405,35 @@ function New-FVImageThumbnail {
 function New-FVVideoThumbnail {
     <#
     .SYNOPSIS
-    Erstellt Thumbnail für Video
+    Erstellt Thumbnail(s) für Video
     
     .DESCRIPTION
-    Extrahiert Frame mit FFmpeg.
-    Standard: Frame bei 1 Sekunde (überspringt schwarze Intros).
+    Extrahiert Frame(s) mit FFmpeg.
+    Unterstützt mehrere Frames basierend auf Config.
     
     .PARAMETER VideoPath
     Pfad zum Video
     
     .PARAMETER OutputPath
-    Pfad für Thumbnail-Output
+    Pfad für Thumbnail-Output (ohne _N.jpg Suffix!)
     
     .PARAMETER Size
     Optional: Max-Größe (Default: aus Config)
     
     .PARAMETER TimeOffset
-    Optional: Zeitpunkt für Frame-Extraktion in Sekunden (Default: 1)
+    Optional: Zeitpunkt für Frame-Extraktion in Sekunden
+    Ignoriert wenn MultiFrame aktiv
+    
+    .PARAMETER FrameIndex
+    Optional: Frame-Index für Multi-Frame (1, 2, 3, ...)
     
     .EXAMPLE
-    New-FVVideoThumbnail -VideoPath "C:\video.mp4" -OutputPath "C:\thumb.jpg"
+    # Einzelner Frame
+    New-FVVideoThumbnail -VideoPath "C:\video.mp4" -OutputPath "C:\.thumbs\video.jpg"
     
     .EXAMPLE
-    # Frame bei 5 Sekunden
-    New-FVVideoThumbnail -VideoPath "C:\video.mp4" -OutputPath "C:\thumb.jpg" -TimeOffset 5
+    # Multi-Frame (intern verwendet)
+    New-FVVideoThumbnail -VideoPath "C:\video.mp4" -OutputPath "C:\.thumbs\video_1.jpg" -TimeOffset 10 -FrameIndex 1
     
     .NOTES
     Benötigt FFmpeg
@@ -427,8 +454,11 @@ function New-FVVideoThumbnail {
         [int]$Size,
         
         [Parameter()]
-        [ValidateRange(0, 3600)]
-        [int]$TimeOffset = 1
+        [ValidateRange(0, 36000)]
+        [double]$TimeOffset = 1,
+        
+        [Parameter()]
+        [int]$FrameIndex
     )
     
     try {
@@ -450,9 +480,6 @@ function New-FVVideoThumbnail {
         $ffmpeg = Get-FFmpegPath
         
         # FFmpeg-Argumente
-        # -ss vor -i für schnelleres Seeking
-        # -vframes 1 für einen Frame
-        # -vf scale für Größe (Aspect-Ratio erhalten)
         $arguments = @(
             '-ss', $TimeOffset
             '-i', $VideoPath
@@ -547,7 +574,59 @@ function New-FVThumbnail {
         } elseif ($ext -in $videoExts) {
             # Video
             Write-Verbose "Type: Video"
-            New-FVVideoThumbnail -VideoPath $MediaPath -OutputPath $thumbPath
+            
+            # Video-Dauer ermitteln
+            $duration = Get-FVVideoDuration -VideoPath $MediaPath -ErrorAction Stop
+            
+            # Config: Anzahl Frames
+            $frameCount = if ($config.Thumbnails.VideoFrames) {
+                $config.Thumbnails.VideoFrames
+            } else {
+                1  # Fallback: 1 Frame
+            }
+            
+            # Config: Frame-Range
+            $rangeStart = if ($config.Thumbnails.VideoFrameRangeStart) {
+                $config.Thumbnails.VideoFrameRangeStart
+            } else {
+                0.2  # Fallback: 20%
+            }
+            
+            $rangeEnd = if ($config.Thumbnails.VideoFrameRangeEnd) {
+                $config.Thumbnails.VideoFrameRangeEnd
+            } else {
+                0.9  # Fallback: 90%
+            }
+            
+            Write-Verbose "Video-Duration: $duration Sekunden, Frames: $frameCount, Range: ${rangeStart}-${rangeEnd}"
+            
+            # Frames generieren
+            for ($i = 1; $i -le $frameCount; $i++) {
+                # Zeitpunkt berechnen (verteilt über Range)
+                if ($frameCount -eq 1) {
+                    # Einzelner Frame: Mitte der Range
+                    $position = ($rangeStart + $rangeEnd) / 2
+                } else {
+                    # Mehrere Frames: gleichmäßig verteilt
+                    $position = $rangeStart + (($rangeEnd - $rangeStart) / ($frameCount - 1)) * ($i - 1)
+                }
+                
+                $timeOffset = [Math]::Round($duration * $position, 2)
+                
+                # Thumb-Pfad mit Frame-Index
+                $frameThumbPath = Get-FVThumbnailPath -MediaPath $MediaPath -FrameIndex $i
+                
+                Write-Verbose "Frame $i/$frameCount @ ${timeOffset}s (${position}%) → $frameThumbPath"
+                
+                # Thumbnail erstellen
+                New-FVVideoThumbnail -VideoPath $MediaPath `
+                                     -OutputPath $frameThumbPath `
+                                     -TimeOffset $timeOffset `
+                                     -FrameIndex $i
+            }
+            
+            # Hauptpfad zurückgeben (erster Frame)
+            return Get-FVThumbnailPath -MediaPath $MediaPath -FrameIndex 1
             
         } else {
             throw "Unbekannter Medien-Typ: $ext"

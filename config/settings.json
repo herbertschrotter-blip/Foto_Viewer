@@ -6,8 +6,9 @@
   "Thumbnails": {
     "Size": 140,
     "Quality": 5,
-    "ParallelProcessing": true,
-    "ThrottleLimit": 8
+    "VideoFrames": 3,
+    "VideoFrameRangeStart": 0.2,
+    "VideoFrameRangeEnd": 0.9
   },
   "Video": {
     "ChunkDuration": 2,
