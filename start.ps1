@@ -109,7 +109,8 @@ $libs = @(
     "Lib\UI\Lib_TemplateEngine.ps1",
     "Lib\API\Lib_API_Gallery.ps1",
     "Lib\API\Lib_API_Assets.ps1",
-    "Lib\API\Lib_API_Settings.ps1"
+    "Lib\API\Lib_API_Settings.ps1",
+    "Lib\API\Lib_API_Folders.ps1"
 )
 
 $loadedCount = 0
@@ -185,6 +186,7 @@ try {
     Register-FVGalleryRoutes
     Register-FVAssetRoutes
     Register-FVSettingsRoutes
+    Register-FVFolderRoutes
     
     $routes = Get-FVRoutes
     Write-Host "  [OK] $($routes.Count) Routes registriert" -ForegroundColor Green

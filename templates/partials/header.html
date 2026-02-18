@@ -8,9 +8,40 @@
             <span>Foto Viewer</span>
         </div>
         <nav class="nav">
-            <a href="/" class="nav-link active">Gallery</a>
-            <a href="/folders" class="nav-link">Ordner</a>
-            <a href="/settings" class="nav-link">Einstellungen</a>
-        </nav>
+    <a href="/" class="nav-link">Gallery</a>
+    <a href="#" id="folder-select-link" class="nav-link">Ordner</a>
+    <a href="/settings" class="nav-link">Einstellungen</a>
+</nav>
+
+<script>
+document.getElementById('folder-select-link').addEventListener('click', async (e) => {
+    e.preventDefault();
+    
+    try {
+        // Ordner-Dialog API aufrufen
+        const response = await fetch('/api/browse-folder');
+        const result = await response.json();
+        
+        if (result.success && result.path) {
+            // Neuen Pfad setzen
+            const setResponse = await fetch('/api/select-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: result.path })
+            });
+            
+            if (setResponse.ok) {
+                // Gallery neu laden
+                window.location.href = '/';
+            } else {
+                alert('Fehler beim Setzen des Ordners!');
+            }
+        }
+    } catch (error) {
+        console.error('Fehler:', error);
+        alert('Fehler beim Öffnen des Ordner-Dialogs!');
+    }
+});
+</script>
     </div>
 </header>
