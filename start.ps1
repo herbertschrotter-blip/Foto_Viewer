@@ -13,7 +13,7 @@ Features:
 - Multi-Frame Video-Previews
 
 .PARAMETER Port
-HTTP-Server Port (Default: 8787)
+HTTP-Server Port (Default: 8888)
 
 .PARAMETER RootPath
 Pfad zum Medien-Ordner (Optional, Dialog wird angezeigt wenn nicht angegeben)
@@ -32,7 +32,7 @@ Logging-Level: Debug, Info, Warn, Error (Default: Info)
 
 .NOTES
 Autor: Herbert Schrotter
-Version: 1.7.0
+Version: 1.7.1
 Erstellt: 2025-02-18
 Projekt: Foto_Viewer
 
@@ -76,7 +76,7 @@ $banner = @"
   ╚═╝      ╚═════╝    ╚═╝    ╚═════╝       ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝
                                                                                           
   Professional Photo & Video Management with Web UI
-  v1.7.0 | PowerShell Edition
+  v1.7.1 | PowerShell Edition
   
 "@
 
@@ -108,7 +108,8 @@ $libs = @(
     # UI & API
     "Lib\UI\Lib_TemplateEngine.ps1",
     "Lib\API\Lib_API_Gallery.ps1",
-    "Lib\API\Lib_API_Assets.ps1"
+    "Lib\API\Lib_API_Assets.ps1",
+    "Lib\API\Lib_API_Settings.ps1"
 )
 
 $loadedCount = 0
@@ -183,6 +184,7 @@ Write-Host "Registriere Routes..." -ForegroundColor Yellow
 try {
     Register-FVGalleryRoutes
     Register-FVAssetRoutes
+    Register-FVSettingsRoutes
     
     $routes = Get-FVRoutes
     Write-Host "  [OK] $($routes.Count) Routes registriert" -ForegroundColor Green
