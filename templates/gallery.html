@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} - Foto Viewer</title>
+    <link rel="stylesheet" href="{{cssUrl}}">
+</head>
+<body>
+    {{> header}}
+    
+    <div class="container">
+        <div class="gallery-header">
+            <h1>{{title}}</h1>
+            <div class="stats">
+                <span class="badge">{{imageCount}} Bilder</span>
+                <span class="badge">{{videoCount}} Videos</span>
+                <span class="badge">{{totalSize}}</span>
+            </div>
+        </div>
+        
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">Alle</button>
+            <button class="filter-btn" data-filter="image">Bilder</button>
+            <button class="filter-btn" data-filter="video">Videos</button>
+        </div>
+        
+        <div class="gallery-grid" id="gallery">
+            <!-- Items werden von JavaScript geladen -->
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Lade mehr...</p>
+        </div>
+    </div>
+    
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <button class="lightbox-close" id="lightbox-close">&times;</button>
+        <button class="lightbox-nav lightbox-prev" id="lightbox-prev">‹</button>
+        <button class="lightbox-nav lightbox-next" id="lightbox-next">›</button>
+        
+        <div class="lightbox-content">
+            <img id="lightbox-image" src="" alt="">
+            <video id="lightbox-video" controls style="display:none;">
+                <source id="lightbox-video-source" src="" type="video/mp4">
+            </video>
+        </div>
+        
+        <div class="lightbox-info">
+            <h3 id="lightbox-title"></h3>
+            <p id="lightbox-details"></p>
+        </div>
+    </div>
+    
+    {{> footer}}
+    
+    <script>
+        // Media-Daten von Server
+        window.mediaData = {{mediaItems}};
+    </script>
+    <script src="{{jsUrl}}"></script>
+</body>
+</html>
