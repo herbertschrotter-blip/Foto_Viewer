@@ -311,8 +311,8 @@ function Resolve-FVTemplateVariables {
                 $replacement = $value | ConvertTo-Json -Compress -Depth 10
             }
             else {
-                # Primitive → String
-                $replacement = $value.ToString()
+                # Primitive → String (OHNE extra Quotes!)
+                $replacement = [string]$value
             }
             
             # Ersetzen
