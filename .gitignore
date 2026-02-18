@@ -54,3 +54,5 @@ converted/
 
 # User-spezifische Config (falls später)
 config/local.json
+# Debug files
+debug_function.txt
