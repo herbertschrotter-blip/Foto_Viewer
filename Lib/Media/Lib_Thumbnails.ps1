@@ -169,17 +169,18 @@ function Get-FVThumbnailPath {
     
     .DESCRIPTION
     Gibt Pfad wo Thumbnail gespeichert wird/ist.
-    Format: .thumbs/{hash}.jpg
+    Format: {MediaOrdner}/.thumbs/{Dateiname}
+    
+    Beispiel:
+    C:\Photos\2024\vacation.jpg
+    → C:\Photos\2024\.thumbs\vacation.jpg
     
     .PARAMETER MediaPath
     Pfad zur Medien-Datei
     
-    .PARAMETER ThumbDirectory
-    Optional: Thumbnail-Verzeichnis (Default: .thumbs)
-    
     .EXAMPLE
-    $thumbPath = Get-FVThumbnailPath -MediaPath "C:\photo.jpg"
-    # → D:\...\03_Foto-Viewer\.thumbs\abc123.jpg
+    $thumbPath = Get-FVThumbnailPath -MediaPath "C:\Photos\2024\vacation.jpg"
+    # → C:\Photos\2024\.thumbs\vacation.jpg
     
     .OUTPUTS
     String - Absoluter Pfad zum Thumbnail
@@ -190,26 +191,24 @@ function Get-FVThumbnailPath {
     param(
         [Parameter(Mandatory)]
         [ValidateScript({Test-Path -LiteralPath $_})]
-        [string]$MediaPath,
-        
-        [Parameter()]
-        [string]$ThumbDirectory = ".thumbs"
+        [string]$MediaPath
     )
     
     try {
-        # Projekt-Root
-        $scriptRoot = $PSScriptRoot
-        $libDir = Split-Path $scriptRoot -Parent
-        $projectRoot = Split-Path $libDir -Parent
+        # Datei-Info
+        $fileInfo = Get-Item -LiteralPath $MediaPath
         
-        # Thumbnail-Verzeichnis
-        $thumbDir = Join-Path $projectRoot $ThumbDirectory
+        # Parent-Ordner
+        $parentDir = $fileInfo.DirectoryName
         
-        # Hash berechnen
-        $hash = Get-FileHash256 -FilePath $MediaPath
+        # .thumbs Ordner im gleichen Verzeichnis
+        $thumbDir = Join-Path $parentDir ".thumbs"
         
-        # Thumbnail-Pfad
-        $thumbPath = Join-Path $thumbDir "$hash.jpg"
+        # Thumbnail-Pfad (gleicher Dateiname, aber .jpg Extension)
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
+        $thumbPath = Join-Path $thumbDir "$baseName.jpg"
+        
+        Write-Verbose "Thumbnail-Pfad: $MediaPath → $thumbPath"
         
         return $thumbPath
         
