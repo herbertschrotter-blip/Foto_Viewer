@@ -16,7 +16,7 @@ Features:
 HTTP-Server Port (Default: 8787)
 
 .PARAMETER RootPath
-Pfad zum Medien-Ordner (Optional, kann später gesetzt werden)
+Pfad zum Medien-Ordner (Optional, Dialog wird angezeigt wenn nicht angegeben)
 
 .PARAMETER LogLevel
 Logging-Level: Debug, Info, Warn, Error (Default: Info)
@@ -32,7 +32,7 @@ Logging-Level: Debug, Info, Warn, Error (Default: Info)
 
 .NOTES
 Autor: Herbert Schrotter
-Version: 1.5.0
+Version: 1.7.0
 Erstellt: 2025-02-18
 Projekt: Foto_Viewer
 
@@ -49,7 +49,7 @@ https://github.com/herbertschrotter-blip/Foto_Viewer
 param(
     [Parameter()]
     [ValidateRange(1024, 65535)]
-    [int]$Port = 8787,
+    [int]$Port = 8888,
     
     [Parameter()]
     [string]$RootPath,
@@ -76,7 +76,7 @@ $banner = @"
   ╚═╝      ╚═════╝    ╚═╝    ╚═════╝       ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝
                                                                                           
   Professional Photo & Video Management with Web UI
-  v1.5.0 | PowerShell Edition
+  v1.7.0 | PowerShell Edition
   
 "@
 
@@ -116,7 +116,7 @@ foreach ($lib in $libs) {
     $libPath = Join-Path $PSScriptRoot $lib
     
     if (-not (Test-Path $libPath)) {
-        Write-Host "  ✗ FEHLT: $lib" -ForegroundColor Red
+        Write-Host "  [FEHLER] FEHLT: $lib" -ForegroundColor Red
         exit 1
     }
     
@@ -124,13 +124,13 @@ foreach ($lib in $libs) {
         . $libPath
         $loadedCount++
     } catch {
-        Write-Host "  ✗ FEHLER beim Laden: $lib" -ForegroundColor Red
+        Write-Host "  [FEHLER] beim Laden: $lib" -ForegroundColor Red
         Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
         exit 1
     }
 }
 
-Write-Host "  ✓ $loadedCount Libraries geladen" -ForegroundColor Green
+Write-Host "  [OK] $loadedCount Libraries geladen" -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
@@ -149,13 +149,27 @@ Initialize-FVState
 if ($RootPath) {
     if (Test-Path -LiteralPath $RootPath) {
         Set-FVState -Key "RootPath" -Value $RootPath
-        Write-Host "  ✓ Root-Path: $RootPath" -ForegroundColor Green
+        Write-Host "  [OK] Root-Path: $RootPath" -ForegroundColor Green
     } else {
-        Write-Host "  ⚠ Root-Path existiert nicht: $RootPath" -ForegroundColor Yellow
-        Write-Host "    Bitte später setzen mit: Set-FVState -Key 'RootPath' -Value 'C:\Dein\Pfad'" -ForegroundColor Cyan
+        Write-Host "  [WARNUNG] Root-Path existiert nicht: $RootPath" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  ℹ️  Root-Path nicht gesetzt (später konfigurierbar)" -ForegroundColor Cyan
+    # ORDNER-DIALOG
+    Write-Host "  Oeffne Ordner-Dialog..." -ForegroundColor Cyan
+    Add-Type -AssemblyName System.Windows.Forms
+    $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
+    $folderBrowser.Description = "Waehle Medien-Ordner (Fotos/Videos)"
+    $folderBrowser.RootFolder = [System.Environment+SpecialFolder]::MyComputer
+    
+    $dialogResult = $folderBrowser.ShowDialog()
+    
+    if ($dialogResult -eq [System.Windows.Forms.DialogResult]::OK) {
+        $RootPath = $folderBrowser.SelectedPath
+        Set-FVState -Key "RootPath" -Value $RootPath
+        Write-Host "  [OK] Ordner gewaehlt: $RootPath" -ForegroundColor Green
+    } else {
+        Write-Host "  [INFO] Kein Ordner gewaehlt - Setup-Seite wird angezeigt" -ForegroundColor Yellow
+    }
 }
 
 Write-Host ""
@@ -171,17 +185,18 @@ try {
     Register-FVAssetRoutes
     
     $routes = Get-FVRoutes
-    Write-Host "  ✓ $($routes.Count) Routes registriert" -ForegroundColor Green
+    Write-Host "  [OK] $($routes.Count) Routes registriert" -ForegroundColor Green
     
-    # DEBUG: Routes auflisten
-    Write-Host "`n  DEBUG: Registrierte Routes:" -ForegroundColor Yellow
-    foreach ($route in $routes) {
-        Write-Host "    - $($route.Method) $($route.Path)" -ForegroundColor Cyan
+    if ($LogLevel -eq 'Debug') {
+        Write-Host ""
+        Write-Host "  DEBUG: Registrierte Routes:" -ForegroundColor Gray
+        foreach ($route in $routes) {
+            Write-Host "    - $($route.Method) $($route.Path)" -ForegroundColor Gray
+        }
     }
-    Write-Host ""
     
 } catch {
-    Write-Host "  ✗ Fehler beim Registrieren der Routes" -ForegroundColor Red
+    Write-Host "  [FEHLER] beim Registrieren der Routes" -ForegroundColor Red
     Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
@@ -198,19 +213,19 @@ try {
     Start-FVHttpServer -Port $Port
     
     Write-Host ""
-    Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
-    Write-Host " ✅ FOTO_VIEWER LÄUFT!" -ForegroundColor Green
-    Write-Host "═══════════════════════════════════════════" -ForegroundColor Green
+    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host " [OK] FOTO_VIEWER LAEUFT!" -ForegroundColor Green
+    Write-Host "==========================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  🌐 URL: http://localhost:$Port" -ForegroundColor Cyan
-    Write-Host "  📁 Root-Path: $(if($RootPath){"$RootPath"}else{"Nicht gesetzt"})" -ForegroundColor Cyan
-    Write-Host "  📊 Log-Level: $LogLevel" -ForegroundColor Cyan
+    Write-Host "  URL: http://localhost:$Port" -ForegroundColor Cyan
+    Write-Host "  Root-Path: $(if($RootPath){"$RootPath"}else{"Nicht gesetzt"})" -ForegroundColor Cyan
+    Write-Host "  Log-Level: $LogLevel" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Drücke STRG+C zum Beenden..." -ForegroundColor Yellow
+    Write-Host "Druecke STRG+C zum Beenden..." -ForegroundColor Yellow
     Write-Host ""
     
     # Browser automatisch öffnen
-    Write-Host "Öffne Browser..." -ForegroundColor Cyan
+    Write-Host "Oeffne Browser..." -ForegroundColor Cyan
     Start-Sleep -Seconds 1
     Start-Process "http://localhost:$Port"
     
@@ -220,13 +235,14 @@ try {
     }
     
 } catch {
-    Write-Host "  ✗ Fehler beim Starten des Servers" -ForegroundColor Red
-    Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "[FEHLER] beim Starten des Servers" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
     exit 1
     
 } finally {
     Write-Host ""
     Write-Host "Stoppe Server..." -ForegroundColor Yellow
     Stop-FVHttpServer
-    Write-Host "  ✓ Server gestoppt" -ForegroundColor Green
+    Write-Host "[OK] Server gestoppt" -ForegroundColor Green
 }

@@ -34,7 +34,7 @@ $folders = Get-FVFolderStructure -Path "C:\Photos"
 
 .NOTES
 Autor: Herbert Schrotter
-Version: 1.0.0
+Version: 1.0.1
 Erstellt: 2025-02-18
 Projekt: Foto_Viewer
 
@@ -121,20 +121,20 @@ function Invoke-FVScan {
         
         Write-Verbose "Extensions: $($allExtensions -join ', ')"
         
-        # Dateien scannen
-        $items = Get-ChildItem -LiteralPath $Path -Recurse:$Recursive -File -ErrorAction Stop |
+        # Dateien scannen (ARRAY ERZWINGEN!)
+        $items = @(Get-ChildItem -LiteralPath $Path -Recurse:$Recursive -File -ErrorAction Stop |
             Where-Object { 
                 # .thumbs Ordner ignorieren!
                 $_.DirectoryName -notlike '*\.thumbs*' -and
                 $_.FullName -notlike '*\.thumbs\*' -and
                 # Extension-Filter
                 $_.Extension.ToLower() -in $allExtensions
-            }
+            })
         
         Write-Verbose "Dateien gefunden: $($items.Count)"
         
-        # Medien-Objekte erstellen
-        $media = $items | ForEach-Object {
+        # Medien-Objekte erstellen (ARRAY ERZWINGEN!)
+        $media = @($items | ForEach-Object {
             $file = $_
             
             # Type bestimmen
@@ -159,14 +159,14 @@ function Invoke-FVScan {
                 LastModified = $file.LastWriteTime
                 Directory = $file.DirectoryName
             }
-        }
+        })
         
         # Sortierung
-        $media = switch ($SortBy) {
+        $media = @(switch ($SortBy) {
             'Date' { $media | Sort-Object LastModified -Descending }
             'Size' { $media | Sort-Object Size -Descending }
             default { $media | Sort-Object Name }
-        }
+        })
         
         Write-Verbose "Medien verarbeitet: $($media.Count)"
         
@@ -302,7 +302,7 @@ function Get-FVFolderStructure {
         
         foreach ($folder in $folders) {
             # Dateien in diesem Ordner
-            $files = Get-ChildItem -LiteralPath $folder.FullName -File -ErrorAction SilentlyContinue
+            $files = @(Get-ChildItem -LiteralPath $folder.FullName -File -ErrorAction SilentlyContinue)
             
             # Bilder zählen
             $imageCount = @($files | Where-Object { $_.Extension.ToLower() -in $imageExts }).Count
@@ -444,7 +444,7 @@ function Get-FVMediaStats {
         Write-Verbose "Erstelle Statistik: $Path"
         
         # Medien scannen
-        $media = Invoke-FVScan -Path $Path -Recursive $Recursive -Type All
+        $media = @(Invoke-FVScan -Path $Path -Recursive $Recursive -Type All)
         
         # Nach Type gruppieren
         $images = @($media | Where-Object Type -eq 'Image')
