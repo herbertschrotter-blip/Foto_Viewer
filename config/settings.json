@@ -1,0 +1,32 @@
+{
+  "Server": {
+    "Port": 8787,
+    "AutoOpenBrowser": true
+  },
+  "Thumbnails": {
+    "Size": 140,
+    "Quality": 5,
+    "ParallelProcessing": true,
+    "ThrottleLimit": 8
+  },
+  "Video": {
+    "ChunkDuration": 2,
+    "ConversionPreset": "veryfast",
+    "ConversionCRF": 26,
+    "AudioBitrate": "96k"
+  },
+  "Cache": {
+    "Enabled": true,
+    "MaxAge": 3600
+  },
+  "Logging": {
+    "Level": "Info",
+    "MaxFileSizeMB": 10,
+    "MaxFiles": 5,
+    "LogDirectory": "logs"
+  },
+  "MediaExtensions": {
+    "Images": [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff"],
+    "Videos": [".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg", ".3gp"]
+  }
+}

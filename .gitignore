@@ -1,0 +1,42 @@
+# PowerShell
+*.ps1~
+*.swp
+*~
+
+# Logs
+logs/
+*.log
+*.tmp
+
+# Test-Ergebnisse
+TestResults/
+*.trx
+
+# Cache
+cache/
+.thumbs/
+
+# Sensible Daten
+*.pfx
+*.p12
+secrets.json
+credentials.xml
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# FFmpeg (zu groß für Git, lokal bereitstellen)
+Tools/ffmpeg/*.exe
+Tools/ffmpeg/*.dll
+
+# User-Daten (nicht committen)
+TestPhotos/
+TestVideos/
