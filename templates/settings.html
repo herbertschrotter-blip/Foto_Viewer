@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einstellungen - Foto Viewer</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+    {{> header}}
+    
+    <div class="container">
+        <h1>Einstellungen</h1>
+        
+        <form id="settings-form" class="settings-form">
+            <!-- Allgemein -->
+            <section class="settings-section">
+                <h2>Allgemein</h2>
+                
+                <div class="form-group">
+                    <label for="rootPath">Medien-Ordner</label>
+                    <div class="input-group">
+                        <input type="text" id="rootPath" name="rootPath" value="{{rootPath}}" readonly>
+                        <button type="button" id="browse-btn" class="btn btn-secondary">Durchsuchen</button>
+                    </div>
+                    <small>Hauptordner mit Fotos und Videos</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="port">Server-Port</label>
+                    <input type="number" id="port" name="port" value="{{port}}" min="1024" max="65535">
+                    <small>Port für den Web-Server (erfordert Neustart)</small>
+                </div>
+            </section>
+            
+            <!-- Thumbnails -->
+            <section class="settings-section">
+                <h2>Thumbnails</h2>
+                
+                <div class="form-group">
+                    <label for="thumbSize">Größe (px)</label>
+                    <input type="number" id="thumbSize" name="thumbSize" value="{{thumbSize}}" min="50" max="500" step="10">
+                    <small>Thumbnail-Größe in Pixel</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="thumbQuality">Qualität</label>
+                    <select id="thumbQuality" name="thumbQuality">
+                        <option value="3" {{qualityLow}}>Niedrig (schnell)</option>
+                        <option value="5" {{qualityMedium}}>Mittel (empfohlen)</option>
+                        <option value="8" {{qualityHigh}}>Hoch (langsam)</option>
+                    </select>
+                    <small>JPEG-Qualität für Thumbnails</small>
+                </div>
+            </section>
+            
+            <!-- Video -->
+            <section class="settings-section">
+                <h2>Video</h2>
+                
+                <div class="form-group">
+                    <label for="videoFrames">Vorschau-Frames</label>
+                    <input type="number" id="videoFrames" name="videoFrames" value="{{videoFrames}}" min="1" max="5">
+                    <small>Anzahl Vorschaubilder pro Video</small>
+                </div>
+            </section>
+            
+            <!-- Buttons -->
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" id="reset-btn" class="btn btn-secondary">Zurücksetzen</button>
+                <a href="/" class="btn btn-secondary">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+    
+    {{> footer}}
+    
+    <script src="/assets/js/settings.js"></script>
+</body>
+</html>
