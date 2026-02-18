@@ -56,3 +56,6 @@ converted/
 config/local.json
 # Debug files
 debug_function.txt
+
+# Debug files
+debug_resolve_function.txt
