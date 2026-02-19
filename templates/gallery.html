@@ -10,56 +10,144 @@
     {{> header}}
     
     <div class="container">
-        <div class="gallery-header">
-            <h1>{{title}}</h1>
-            <div class="stats">
-                <span class="badge">{{imageCount}} Bilder</span>
-                <span class="badge">{{videoCount}} Videos</span>
-                <span class="badge">{{totalSize}}</span>
+        <h1>{{title}}</h1>
+        
+        <!-- Breadcrumb (nur bei Ordner-Ansicht) -->
+        {{#if breadcrumbs}}
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            {{#each breadcrumbs}}
+            <span class="breadcrumb-separator">/</span>
+            <a href="/folder/{{path}}">{{name}}</a>
+            {{/each}}
+        </div>
+        {{/if}}
+        
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-value">{{imageCount}}</span>
+                <span class="stat-label">Bilder</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{videoCount}}</span>
+                <span class="stat-label">Videos</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{totalSize}}</span>
+                <span class="stat-label">Größe</span>
             </div>
         </div>
         
-        <div class="filters">
+        <!-- Filter Buttons (nur bei Medien-Ansicht) -->
+        {{#if mediaItems}}
+        <div class="filter-buttons">
             <button class="filter-btn active" data-filter="all">Alle</button>
-            <button class="filter-btn" data-filter="image">Bilder</button>
-            <button class="filter-btn" data-filter="video">Videos</button>
+            <button class="filter-btn" data-filter="images">Bilder</button>
+            <button class="filter-btn" data-filter="videos">Videos</button>
         </div>
+        {{/if}}
         
-        <div class="gallery-grid" id="gallery">
-            <!-- Items werden von JavaScript geladen -->
+        <!-- ORDNER-GRID -->
+        {{#if folderItems}}
+        <div class="folders-grid">
+            {{#each folderItems}}
+            <div class="folder-card" onclick="window.location.href='/folder/'+encodeURIComponent('{{path}}');">
+                <div class="folder-preview">
+                    {{#if previewThumbs}}
+                    {{#each previewThumbs}}
+                    <img src="{{this}}" alt="" class="folder-thumb">
+                    {{/each}}
+                    {{/if}}
+                </div>
+                <div class="folder-info">
+                    <div class="folder-path">{{path}}</div>
+                    <div class="folder-stats">
+                        {{imageCount}} Bilder · {{videoCount}} Videos
+                    </div>
+                </div>
+            </div>
+            {{/each}}
         </div>
+        {{/if}}
         
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Lade mehr...</p>
+        <!-- MEDIEN-GRID -->
+        {{#if mediaItems}}
+        <div class="media-grid">
+            {{#each mediaItems}}
+            <div class="media-card {{type}}" data-type="{{type}}">
+                <div class="media-preview">
+                    {{#if thumbs}}
+                    {{#each thumbs}}
+                    <img src="{{this}}" alt="{{name}}" class="media-thumb">
+                    {{/each}}
+                    {{/if}}
+                    {{#if type}}
+                    <span class="video-badge">▶</span>
+                    {{/if}}
+                </div>
+                <div class="media-info">
+                    <div class="media-name">{{name}}</div>
+                </div>
+            </div>
+            {{/each}}
         </div>
-    </div>
-    
-    <!-- Lightbox -->
-    <div class="lightbox" id="lightbox">
-        <button class="lightbox-close" id="lightbox-close">&times;</button>
-        <button class="lightbox-nav lightbox-prev" id="lightbox-prev">‹</button>
-        <button class="lightbox-nav lightbox-next" id="lightbox-next">›</button>
-        
-        <div class="lightbox-content">
-            <img id="lightbox-image" src="" alt="">
-            <video id="lightbox-video" controls style="display:none;">
-                <source id="lightbox-video-source" src="" type="video/mp4">
-            </video>
-        </div>
-        
-        <div class="lightbox-info">
-            <h3 id="lightbox-title"></h3>
-            <p id="lightbox-details"></p>
-        </div>
+        {{/if}}
     </div>
     
     {{> footer}}
     
+    <!-- JavaScript für Medien-Filter -->
     <script>
-        // Media-Daten von Server
-        window.mediaData = {{mediaItems}};
+        // Filter-Buttons (nur bei Medien-Ansicht)
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const mediaCards = document.querySelectorAll('.media-card');
+        
+        if (filterButtons.length > 0) {
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Active state
+                    filterButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    const filter = btn.getAttribute('data-filter');
+                    
+                    mediaCards.forEach(card => {
+                        const type = card.getAttribute('data-type');
+                        
+                        if (filter === 'all') {
+                            card.style.display = 'block';
+                        } else if (filter === 'images' && type === 'Image') {
+                            card.style.display = 'block';
+                        } else if (filter === 'videos' && type === 'Video') {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        }
+        
+        // Click-Handler für Medien
+        mediaCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const type = card.getAttribute('data-type');
+                const img = card.querySelector('.media-thumb');
+                
+                if (img) {
+                    const src = img.src.replace('/media/', '');
+                    
+                    if (type === 'Video') {
+                        // Video öffnen
+                        window.open('/media/' + src, '_blank');
+                    } else {
+                        // Lightbox TODO
+                        window.open('/media/' + src, '_blank');
+                    }
+                }
+            });
+        });
     </script>
-    <script src="/assets/js/app.js"></script>
 </body>
 </html>

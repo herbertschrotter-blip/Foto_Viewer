@@ -32,7 +32,7 @@ Logging-Level: Debug, Info, Warn, Error (Default: Info)
 
 .NOTES
 Autor: Herbert Schrotter
-Version: 1.7.1
+Version: 1.8.0
 Erstellt: 2025-02-18
 Projekt: Foto_Viewer
 
@@ -76,7 +76,7 @@ $banner = @"
   ╚═╝      ╚═════╝    ╚═╝    ╚═════╝       ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝
                                                                                           
   Professional Photo & Video Management with Web UI
-  v1.7.1 | PowerShell Edition
+  v1.8.0 | PowerShell Edition
   
 "@
 
@@ -133,6 +133,39 @@ foreach ($lib in $libs) {
 }
 
 Write-Host "  [OK] $loadedCount Libraries geladen" -ForegroundColor Green
+
+# ============================================================================
+# DEBUG: TEMPLATE-ENGINE CHECK
+# ============================================================================
+
+Write-Host ""
+Write-Host "DEBUG: Template-Engine Check:" -ForegroundColor Magenta
+if (Get-Command Resolve-FVTemplateConditionals -ErrorAction SilentlyContinue) {
+    Write-Host "  [OK] Resolve-FVTemplateConditionals geladen" -ForegroundColor Green
+} else {
+    Write-Host "  [FEHLER] Resolve-FVTemplateConditionals FEHLT!" -ForegroundColor Red
+    Write-Host "  Library wird neu geladen..." -ForegroundColor Yellow
+    . (Join-Path $PSScriptRoot "Lib\UI\Lib_TemplateEngine.ps1")
+}
+
+if (Get-Command Resolve-FVTemplateLoops -ErrorAction SilentlyContinue) {
+    Write-Host "  [OK] Resolve-FVTemplateLoops geladen" -ForegroundColor Green
+} else {
+    Write-Host "  [FEHLER] Resolve-FVTemplateLoops FEHLT!" -ForegroundColor Red
+}
+
+# Quick-Test
+try {
+    $testResult = Resolve-FVTemplateConditionals -Template "{{#if x}}Y{{/if}}" -Data @{x=$true}
+    if ($testResult -eq "Y") {
+        Write-Host "  [OK] Template-Engine funktioniert: Test erfolgreich" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARNUNG] Template-Engine gibt falsches Ergebnis: '$testResult'" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  [FEHLER] Template-Engine Test fehlgeschlagen: $($_.Exception.Message)" -ForegroundColor Red
+}
+
 Write-Host ""
 
 # ============================================================================
