@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>"Test" - Foto Viewer</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+    <header class="header">
+    <div class="header-content">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="currentColor">
+                <path d="M16 2L2 8v12c0 7.7 5.4 14.9 14 16.5 8.6-1.6 14-8.8 14-16.5V8L16 2zm0 22c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z"/>
+                <circle cx="16" cy="16" r="4"/>
+            </svg>
+            <span>Foto Viewer</span>
+        </div>
+        <nav class="nav">
+    <a href="/" class="nav-link">Gallery</a>
+    <a href="#" id="folder-select-link" class="nav-link">Ordner</a>
+    <a href="/settings" class="nav-link">Einstellungen</a>
+</nav>
+
+<script>
+document.getElementById('folder-select-link').addEventListener('click', async (e) => {
+    e.preventDefault();
+    
+    try {
+        // Ordner-Dialog API aufrufen
+        const response = await fetch('/api/browse-folder');
+        const result = await response.json();
+        
+        if (result.success && result.path) {
+            // Neuen Pfad setzen
+            const setResponse = await fetch('/api/select-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: result.path })
+            });
+            
+            if (setResponse.ok) {
+                // Gallery neu laden
+                window.location.href = '/';
+            } else {
+                alert('Fehler beim Setzen des Ordners!');
+            }
+        }
+    } catch (error) {
+        console.error('Fehler:', error);
+        alert('Fehler beim Öffnen des Ordner-Dialogs!');
+    }
+});
+</script>
+    </div>
+</header>
+    
+    <div class="container">
+        <h1>"Test"</h1>
+        
+        <!-- Breadcrumb (nur bei Ordner-Ansicht) -->
+        {{#if breadcrumbs}}
+        <div class="breadcrumb">
+            <a href="/">Home</a>
+            {{#each breadcrumbs}}
+            <span class="breadcrumb-separator">/</span>
+            <a href="/folder/"></a>
+            {{/each}}
+        </div>
+        {{/if}}
+        
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-value"></span>
+                <span class="stat-label">Bilder</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value"></span>
+                <span class="stat-label">Videos</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value"></span>
+                <span class="stat-label">Größe</span>
+            </div>
+        </div>
+        
+        <!-- Filter Buttons (nur bei Medien-Ansicht) -->
+        {{#if mediaItems}}
+        <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">Alle</button>
+            <button class="filter-btn" data-filter="images">Bilder</button>
+            <button class="filter-btn" data-filter="videos">Videos</button>
+        </div>
+        {{/if}}
+        
+        <!-- ORDNER-GRID -->
+        {{#if folderItems}}
+        <div class="folders-grid">
+            {{#each folderItems}}
+            <div class="folder-card" onclick="window.location.href='/folder/'+encodeURIComponent('');">
+                <div class="folder-preview">
+                    {{#if previewThumbs}}
+                    {{#each previewThumbs}}
+                    <img src="{{this}}" alt="" class="folder-thumb">
+                    {{/each}}
+                    {{/if}}
+                </div>
+                <div class="folder-info">
+                    <div class="folder-path"></div>
+                    <div class="folder-stats">
+                         Bilder ·  Videos
+                    </div>
+                </div>
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+        
+        <!-- MEDIEN-GRID -->
+        {{#if mediaItems}}
+        <div class="media-grid">
+            {{#each mediaItems}}
+            <div class="media-card " data-type="">
+                <div class="media-preview">
+                    {{#if thumbs}}
+                    {{#each thumbs}}
+                    <img src="{{this}}" alt="" class="media-thumb">
+                    {{/each}}
+                    {{/if}}
+                    {{#if type}}
+                    <span class="video-badge">▶</span>
+                    {{/if}}
+                </div>
+                <div class="media-info">
+                    <div class="media-name"></div>
+                </div>
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+    </div>
+    
+    <footer class="footer">
+    <div class="footer-content">
+        <p>&copy; 2025 Foto Viewer - PowerShell Edition</p>
+        <p class="footer-version">v1.2.0</p>
+    </div>
+</footer>
+    
+    <!-- JavaScript für Medien-Filter -->
+    <script>
+        // Filter-Buttons (nur bei Medien-Ansicht)
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const mediaCards = document.querySelectorAll('.media-card');
+        
+        if (filterButtons.length > 0) {
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Active state
+                    filterButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    const filter = btn.getAttribute('data-filter');
+                    
+                    mediaCards.forEach(card => {
+                        const type = card.getAttribute('data-type');
+                        
+                        if (filter === 'all') {
+                            card.style.display = 'block';
+                        } else if (filter === 'images' && type === 'Image') {
+                            card.style.display = 'block';
+                        } else if (filter === 'videos' && type === 'Video') {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        }
+        
+        // Click-Handler für Medien
+        mediaCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const type = card.getAttribute('data-type');
+                const img = card.querySelector('.media-thumb');
+                
+                if (img) {
+                    const src = img.src.replace('/media/', '');
+                    
+                    if (type === 'Video') {
+                        // Video öffnen
+                        window.open('/media/' + src, '_blank');
+                    } else {
+                        // Lightbox TODO
+                        window.open('/media/' + src, '_blank');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
